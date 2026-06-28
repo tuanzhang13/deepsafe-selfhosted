@@ -1,0 +1,84 @@
+# 深度云网络验证 DeepSafe — 自主部署版（客户分发：仅拉取预编译镜像，不含源码）
+# 推荐在 Ubuntu 22.04 / 24.04 服务器上运行
+# 用法: cp .env.selfhosted.example .env.selfhosted && docker compose -f docker-compose.selfhosted.yml pull && docker compose -f docker-compose.selfhosted.yml up -d
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-deepsafe}
+      MYSQL_USER: ${MYSQL_USER:-deepsafe}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-deepsafe}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7-bookworm
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    image: ${DEEPSAFE_IMAGE_PREFIX:-ghcr.io/tuanzhang13}/deepsafe-selfhosted-api:${DEEPSAFE_VERSION:-latest}
+    pull_policy: always
+    restart: unless-stopped
+    env_file:
+      - .env.selfhosted
+    environment:
+      HTTP_ADDR: ":8080"
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      DATABASE_URL: ${MYSQL_USER:-deepsafe}:${MYSQL_PASSWORD:-deepsafe}@tcp(mysql:3306)/${MYSQL_DATABASE:-deepsafe}?charset=utf8mb4&parseTime=True&loc=Local
+      REDIS_URL: redis://redis:6379/0
+      REDIS_ADDR: redis:6379
+      NETVERIFY_EDITION: selfhosted
+      EDITION: selfhosted
+      LICENSE_PATH: /app/data/license.lic
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      GIN_MODE: release
+    volumes:
+      - license_data:/app/data
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8080"
+
+  author:
+    image: ${DEEPSAFE_IMAGE_PREFIX:-ghcr.io/tuanzhang13}/deepsafe-selfhosted-author:${DEEPSAFE_VERSION:-latest}
+    pull_policy: always
+    restart: unless-stopped
+    expose:
+      - "80"
+
+  web:
+    image: ${DEEPSAFE_IMAGE_PREFIX:-ghcr.io/tuanzhang13}/deepsafe-selfhosted-web:${DEEPSAFE_VERSION:-latest}
+    pull_policy: always
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8088}:80"
+    depends_on:
+      - api
+      - author
+
+volumes:
+  mysql_data:
+  redis_data:
+  license_data:

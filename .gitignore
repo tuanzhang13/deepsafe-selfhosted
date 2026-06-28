@@ -1,0 +1,37 @@
+﻿node_modules/
+dist/
+.vite/
+
+# 环境变量与密钥（勿提交）
+.env
+.env.*
+!.env.example
+!.env.*.example
+scripts/env.local
+deploy/.env
+deploy/.env.selfhosted
+
+# 编译产物
+*.exe
+*.exe~
+*.dll
+backend/server
+backend/server.exe
+backend/dist/
+bin/
+
+# 授权与密钥文件
+*.lic
+*.key
+*.pub
+license-ed25519.key
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
